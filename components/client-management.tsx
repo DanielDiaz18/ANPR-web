@@ -1,10 +1,7 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -12,125 +9,144 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Pencil, Trash2, Mail, Phone } from "lucide-react"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Client, ClientFormData, clientSchema } from "@/models/client.model";
+import {
+  createClient,
+  deleteClient,
+  getClients,
+  updateClient,
+} from "@/repositories/client.repo";
+import { useDebounce } from "@uidotdev/usehooks";
+import { Mail, Pencil, Phone, Plus, Search, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { z } from "zod";
 
-interface Client {
-  id: string
-  name: string
-  email: string
-  phone: string
-  company: string
-  status: "active" | "inactive"
-  joinedDate: string
-}
-
-const initialClients: Client[] = [
-  {
-    id: "1",
-    name: "John Smith",
-    email: "john.smith@example.com",
-    phone: "+1 234 567 8901",
-    company: "Tech Corp",
-    status: "active",
-    joinedDate: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Sarah Johnson",
-    email: "sarah.j@example.com",
-    phone: "+1 234 567 8902",
-    company: "Design Studio",
-    status: "active",
-    joinedDate: "2024-02-20",
-  },
-  {
-    id: "3",
-    name: "Michael Brown",
-    email: "m.brown@example.com",
-    phone: "+1 234 567 8903",
-    company: "Retail Inc",
-    status: "inactive",
-    joinedDate: "2023-11-10",
-  },
-  {
-    id: "4",
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    phone: "+1 234 567 8904",
-    company: "Marketing Pro",
-    status: "active",
-    joinedDate: "2024-03-05",
-  },
-]
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "./ui/sheet";
+import { Spinner } from "./ui/spinner";
+import { Switch } from "./ui/switch";
+import { useToast } from "./ui/use-toast";
 
 export function ClientManagement() {
-  const [clients, setClients] = useState<Client[]>(initialClients)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [formData, setFormData] = useState({
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [formData, setFormData] = useState<ClientFormData>({
     name: "",
     email: "",
     phone: "",
-    company: "",
-    status: "active" as "active" | "inactive",
-  })
+    enabled: true,
+  });
+  const [formError, setFormError] = useState<string | null>(null);
+  const debouncedSearchTerm = useDebounce(searchQuery, 300);
 
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.company.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  useEffect(() => {
+    (async () => {
+      try {
+        setIsLoading(true);
+        const data = await getClients(debouncedSearchTerm);
+        setClients(data);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [debouncedSearchTerm]);
 
   const handleOpenDialog = (client?: Client) => {
+    setFormError(null);
     if (client) {
-      setEditingClient(client)
-      setFormData({
-        name: client.name,
-        email: client.email,
-        phone: client.phone,
-        company: client.company,
-        status: client.status,
-      })
+      setEditingClient(client);
+      setFormData(client);
     } else {
-      setEditingClient(null)
+      setEditingClient(null);
       setFormData({
         name: "",
         email: "",
         phone: "",
-        company: "",
-        status: "active",
-      })
+        enabled: true,
+      });
     }
-    setIsDialogOpen(true)
-  }
+    setIsDialogOpen(true);
+  };
 
-  const handleSaveClient = () => {
-    if (editingClient) {
-      setClients(clients.map((c) => (c.id === editingClient.id ? { ...c, ...formData } : c)))
-    } else {
-      const newClient: Client = {
-        id: String(clients.length + 1),
-        ...formData,
-        joinedDate: new Date().toISOString().split("T")[0],
+  const handleSaveClient = async () => {
+    try {
+      if (editingClient) {
+        setIsLoading(true);
+        const updatedClient = await updateClient(editingClient.id, formData);
+        toast({
+          title: "✅ Client Updated",
+          description: `Client has been updated.`,
+        });
+        setClients(
+          clients.map((c) => (c.id === editingClient.id ? updatedClient : c))
+        );
+      } else {
+        clientSchema.parse(formData);
+        const client = await createClient(formData);
+        setIsLoading(true);
+        setClients([...clients, client]);
       }
-      setClients([...clients, newClient])
+    } catch (e) {
+      setFormError(
+        (e as z.ZodError).errors.map((err) => err.message).join(", ")
+      );
+      if (!(e instanceof z.ZodError)) {
+        toast({
+          title: "Invalid input",
+          description: (e as z.ZodError).errors
+            .map((err) => err.message)
+            .join(", "),
+          variant: "destructive",
+        });
+      }
+      return;
+    } finally {
+      setIsLoading(false);
     }
-    setIsDialogOpen(false)
-  }
+    setIsDialogOpen(false);
+  };
 
-  const handleDeleteClient = (id: string) => {
-    setClients(clients.filter((c) => c.id !== id))
-  }
+  const handleDeleteClient = async (id: string) => {
+    try {
+      setIsLoading(true);
+      await deleteClient(id);
+      setClients(clients.filter((c) => c.id !== id));
+    } catch (e) {
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Clients</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">
+            Clients
+          </h2>
           <p className="text-muted-foreground">Manage your client database</p>
         </div>
         <Button onClick={() => handleOpenDialog()}>
@@ -144,7 +160,7 @@ export function ClientManagement() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search clients by name, email, or company..."
+              placeholder="Search clients by name, or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -158,14 +174,22 @@ export function ClientManagement() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Company</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Joined Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredClients.map((client) => (
+              {isLoading && (
+                <TableRow>
+                  <TableCell
+                    colSpan={4}
+                    className="text-center py-4 flex items-center"
+                  >
+                    <Spinner></Spinner>
+                  </TableCell>
+                </TableRow>
+              )}
+              {clients.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">{client.name}</TableCell>
                   <TableCell>
@@ -180,23 +204,31 @@ export function ClientManagement() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{client.company}</TableCell>
                   <TableCell>
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        client.status === "active" ? "bg-green-500/10 text-green-600" : "bg-gray-500/10 text-gray-600"
+                        client.enabled
+                          ? "bg-green-500/10 text-green-600"
+                          : "bg-gray-500/10 text-gray-600"
                       }`}
                     >
-                      {client.status}
+                      {client.enabled ? "Active" : "Inactive"}
                     </span>
                   </TableCell>
-                  <TableCell>{client.joinedDate}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(client)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDialog(client)}
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteClient(client.id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteClient(client.id)}
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -211,9 +243,13 @@ export function ClientManagement() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingClient ? "Edit Client" : "Add New Client"}</DialogTitle>
+            <DialogTitle>
+              {editingClient ? "Edit Client" : "Add New Client"}
+            </DialogTitle>
             <DialogDescription>
-              {editingClient ? "Update client information" : "Enter the details for the new client"}
+              {editingClient
+                ? "Update client information"
+                : "Enter the details for the new client"}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -222,7 +258,9 @@ export function ClientManagement() {
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 placeholder="John Smith"
               />
             </div>
@@ -232,7 +270,9 @@ export function ClientManagement() {
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 placeholder="john@example.com"
               />
             </div>
@@ -241,31 +281,23 @@ export function ClientManagement() {
               <Input
                 id="phone"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
+                }
                 placeholder="+1 234 567 8900"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="company">Company</Label>
-              <Input
-                id="company"
-                value={formData.company}
-                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                placeholder="Tech Corp"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <select
+            <div className="flex gap-2 ">
+              <Label htmlFor="status">Active</Label>
+              <Switch
                 id="status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as "active" | "inactive" })}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                checked={formData.enabled}
+                onCheckedChange={(enabled) =>
+                  setFormData({ ...formData, enabled })
+                }
+              ></Switch>
             </div>
+            <div className="text-sm error-text text-red-600">{formError}</div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -275,6 +307,34 @@ export function ClientManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Edit profile</SheetTitle>
+            <SheetDescription>
+              Make changes to your profile here. Click save when you&apos;re
+              done.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid flex-1 auto-rows-min gap-6 px-4">
+            <div className="grid gap-3">
+              <Label htmlFor="sheet-demo-name">Name</Label>
+              <Input id="sheet-demo-name" defaultValue="Pedro Duarte" />
+            </div>
+            <div className="grid gap-3">
+              <Label htmlFor="sheet-demo-username">Username</Label>
+              <Input id="sheet-demo-username" defaultValue="@peduarte" />
+            </div>
+          </div>
+          <SheetFooter>
+            <Button type="submit">Save changes</Button>
+            <SheetClose asChild>
+              <Button variant="outline">Close</Button>
+            </SheetClose>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
-  )
+  );
 }
