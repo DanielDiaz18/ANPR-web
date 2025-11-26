@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import useWebSocket from "react-use-websocket";
 
 export function ServiceManagement() {
   const { toast } = useToast();
@@ -59,6 +60,34 @@ export function ServiceManagement() {
     plate_id: "",
     kind: ServiceKind.ENGINE_WASH,
   });
+
+  const { sendMessage, lastMessage, readyState } = useWebSocket(
+    "ws://localhost:8000/api/v1/ws/services"
+  );
+
+  useEffect(() => {
+    if (lastMessage === null) return;
+    const payload = JSON.parse(lastMessage.data);
+
+    switch (payload.type) {
+      case "initial_data":
+        setServices(payload.data);
+        break;
+      case "update":
+        const index = services.findIndex((e) => e.id === payload.data.id);
+        if (index === -1) {
+          setServices((prevServices) => [...prevServices, payload.data]);
+        } else {
+          setServices((prevServices) =>
+            prevServices.map((e) =>
+              e.id === payload.data.id ? payload.data : e
+            )
+          );
+        }
+        break;
+    }
+    console.log(payload);
+  }, [lastMessage]);
 
   const serviceKinds = {
     [ServiceKind.ENGINE_WASH]: {
@@ -83,17 +112,17 @@ export function ServiceManagement() {
     },
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setIsLoading(true);
-        const data = await getServices(debouncedSearchTerm);
-        setServices(data);
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, [debouncedSearchTerm]);
+  // useEffect(() => {
+  //   (async () => {
+  //     try {
+  //       setIsLoading(true);
+  //       const data = await getServices(debouncedSearchTerm);
+  //       setServices(data);
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   })();
+  // }, [debouncedSearchTerm]);
 
   const handleOpenDialog = (service?: Service) => {
     if (service) {
@@ -175,8 +204,8 @@ export function ServiceManagement() {
   };
 
   const dateFormatter = new Intl.DateTimeFormat("en-US", {
-    dateStyle: "full",
-    timeStyle: "long",
+    dateStyle: "short",
+    timeStyle: "short",
   });
 
   return (
@@ -224,7 +253,7 @@ export function ServiceManagement() {
               {services.map((service) => (
                 <TableRow key={service.id}>
                   <TableCell className="font-medium">
-                    {service.vehicle?.brand} {service.vehicle?.model}
+                    {service.vehicle?.brand} {service.vehicle?.plate_id}
                   </TableCell>
                   <TableCell>
                     <div>

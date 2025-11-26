@@ -8,14 +8,17 @@ const axiosInstance = axios.create({
   timeout: 10000,
 });
 
-// Optional: Add request or response interceptors
+// Request interceptor to add JWT token
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Modify request config before sending (e.g., add auth token)
-    // const token = localStorage.getItem('authToken');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    // Get token from localStorage
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
     return config;
   },
   (error) => {
@@ -23,13 +26,26 @@ axiosInstance.interceptors.request.use(
   }
 );
 
+// Response interceptor to handle errors
 axiosInstance.interceptors.response.use(
   (response) => {
-    // Handle successful responses
     return response;
   },
   (error) => {
-    // Handle response errors (e.g., refresh token, show error message)
+    // Handle 401 Unauthorized - token expired or invalid
+    if (error.response?.status === 401) {
+      // Clear auth data
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+
+        // Redirect to login if not already there
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
+    }
+
     return Promise.reject(error);
   }
 );

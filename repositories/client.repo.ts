@@ -39,3 +39,14 @@ export async function updateClient(
 export async function deleteClient(id: string): Promise<void> {
   await axios.delete(`/client/${id}`);
 }
+
+export async function addVehicleToClient(
+  clientId: string,
+  plateId: string
+): Promise<Client> {
+  const { data } = await axios.post(`/client/${clientId}/vehicle`, {
+    plate_id: plateId,
+  });
+
+  return data.client as Client;
+}

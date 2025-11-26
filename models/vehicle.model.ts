@@ -1,4 +1,5 @@
 import z from "zod";
+import type { Client } from "./client.model";
 
 export interface Vehicle {
   id: string;
@@ -6,12 +7,14 @@ export interface Vehicle {
   model: string;
   year: number;
   plate_id: string;
-  active: boolean;
+  client_id?: string;
+  client?: Client;
+  // active: boolean;
 }
 
 export type VehicleStatus = "active" | "inactive";
 
-export type VehicleFormData = Omit<Vehicle, "id">;
+export type VehicleFormData = Omit<Vehicle, "id" | "client">;
 
 export const vehicleSchema: z.ZodType<VehicleFormData> = z.object({
   brand: z.string().min(1, "Brand is required"),

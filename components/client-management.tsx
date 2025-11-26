@@ -26,11 +26,13 @@ import {
   deleteClient,
   getClients,
   updateClient,
+  addVehicleToClient,
 } from "@/repositories/client.repo";
 import { useDebounce } from "@uidotdev/usehooks";
-import { Mail, Pencil, Phone, Plus, Search, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { z } from "zod";
+import { Mail, Pencil, Phone, Plus, Search, Trash2, Car } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import useWebSocket from 'react-use-websocket';
+import { set, z } from "zod";
 
 import {
   Sheet,
@@ -44,6 +46,7 @@ import {
 import { Spinner } from "./ui/spinner";
 import { Switch } from "./ui/switch";
 import { useToast } from "./ui/use-toast";
+import { WebSocketLike } from "react-use-websocket/dist/lib/types";
 
 export function ClientManagement() {
   const { toast } = useToast();
@@ -52,6 +55,9 @@ export function ClientManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isAddVehicleDialogOpen, setIsAddVehicleDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [vehiclePlateId, setVehiclePlateId] = useState("");
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientFormData>({
     name: "",
@@ -62,17 +68,43 @@ export function ClientManagement() {
   const [formError, setFormError] = useState<string | null>(null);
   const debouncedSearchTerm = useDebounce(searchQuery, 300);
 
+  const { sendMessage, lastMessage,  readyState } = useWebSocket('ws://localhost:8000/api/v1/ws/clients');
+
   useEffect(() => {
-    (async () => {
-      try {
-        setIsLoading(true);
-        const data = await getClients(debouncedSearchTerm);
-        setClients(data);
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, [debouncedSearchTerm]);
+    if (lastMessage === null) return;
+    const payload = JSON.parse(lastMessage.data);
+
+    switch (payload.type) {
+      case 'initial_data':
+        setClients(payload.data);
+        break;
+      case 'update':
+        const index = clients.findIndex((client) => client.id === payload.data.id);
+        if (index === -1) {
+          setClients((prevClients) => [...prevClients, payload.data]);
+        } else {
+          setClients((prevClients) =>
+            prevClients.map((client) =>
+              client.id === payload.data.id ? payload.data : client
+            )
+          );
+        }
+        break;
+    }
+    console.log(payload);
+  }, [lastMessage]);
+
+  // useEffect(() => {
+  //   (async () => {
+  //     try {
+  //       setIsLoading(true);
+  //       const data = await getClients(debouncedSearchTerm);
+  //       setClients(data);
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   })();
+  // }, [debouncedSearchTerm]);
 
   const handleOpenDialog = (client?: Client) => {
     setFormError(null);
@@ -140,6 +172,51 @@ export function ClientManagement() {
     }
   };
 
+  const handleOpenAddVehicleDialog = (client: Client) => {
+    setSelectedClient(client);
+    setVehiclePlateId("");
+    setIsAddVehicleDialogOpen(true);
+  };
+
+  const handleAddVehicle = async () => {
+    if (!selectedClient || !vehiclePlateId.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid plate ID",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const updatedClient = await addVehicleToClient(
+        selectedClient.id,
+        vehiclePlateId.trim()
+      );
+      
+      setClients(
+        clients.map((c) => (c.id === updatedClient.id ? updatedClient : c))
+      );
+      
+      toast({
+        title: "✅ Vehicle Added",
+        description: `Vehicle ${vehiclePlateId} has been added to ${selectedClient.name}`,
+      });
+      
+      setIsAddVehicleDialogOpen(false);
+      setVehiclePlateId("");
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e.response?.data?.message || "Failed to add vehicle",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -174,6 +251,7 @@ export function ClientManagement() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Contact</TableHead>
+                <TableHead>Vehicles</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -182,7 +260,7 @@ export function ClientManagement() {
               {isLoading && (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="text-center py-4 flex items-center"
                   >
                     <Spinner></Spinner>
@@ -205,6 +283,20 @@ export function ClientManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Car className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        {client.vehicles?.length || 0} vehicle{client.vehicles?.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    {client.vehicles && client.vehicles.length > 0 && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {client.vehicles.slice(0, 2).map((v) => v.plate_id).join(', ')}
+                        {client.vehicles.length > 2 && '...'}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         client.enabled
@@ -217,6 +309,14 @@ export function ClientManagement() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenAddVehicleDialog(client)}
+                        title="Add Vehicle"
+                      >
+                        <Car className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -335,6 +435,62 @@ export function ClientManagement() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={isAddVehicleDialogOpen} onOpenChange={setIsAddVehicleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Vehicle to Client</DialogTitle>
+            <DialogDescription>
+              Add a vehicle to {selectedClient?.name} by entering the license plate ID
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="plate_id">License Plate ID</Label>
+              <Input
+                id="plate_id"
+                value={vehiclePlateId}
+                onChange={(e) => setVehiclePlateId(e.target.value)}
+                placeholder="ABC-1234"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddVehicle();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the license plate ID of the vehicle to add to this client
+              </p>
+            </div>
+            {selectedClient?.vehicles && selectedClient.vehicles.length > 0 && (
+              <div className="grid gap-2">
+                <Label>Current Vehicles</Label>
+                <div className="rounded-md border border-border p-3">
+                  <div className="space-y-2">
+                    {selectedClient.vehicles.map((vehicle) => (
+                      <div key={vehicle.id} className="flex items-center gap-2 text-sm">
+                        <Car className="h-3 w-3 text-muted-foreground" />
+                        <span className="font-medium">{vehicle.plate_id}</span>
+                        <span className="text-muted-foreground">
+                          - {vehicle.brand} {vehicle.model} ({vehicle.year})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddVehicleDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddVehicle} disabled={isLoading || !vehiclePlateId.trim()}>
+              {isLoading ? "Adding..." : "Add Vehicle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

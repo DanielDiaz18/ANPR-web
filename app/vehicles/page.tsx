@@ -1,10 +1,13 @@
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { VehicleManagement } from "@/components/vehicle-management"
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { VehicleManagement } from "@/components/vehicle-management";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default function VehiclesPage() {
   return (
-    <DashboardLayout>
-      <VehicleManagement />
-    </DashboardLayout>
-  )
+    <AuthGuard>
+      <DashboardLayout>
+        <VehicleManagement />
+      </DashboardLayout>
+    </AuthGuard>
+  );
 }

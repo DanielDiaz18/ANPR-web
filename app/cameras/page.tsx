@@ -1,10 +1,13 @@
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { CameraMonitoring } from "@/components/camera-monitoring"
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { CameraMonitoring } from "@/components/camera-monitoring";
+import { AuthGuard } from "@/components/auth-guard";
 
 export default function CamerasPage() {
   return (
-    <DashboardLayout>
-      <CameraMonitoring />
-    </DashboardLayout>
-  )
+    <AuthGuard>
+      <DashboardLayout>
+        <CameraMonitoring />
+      </DashboardLayout>
+    </AuthGuard>
+  );
 }

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   Car,
   LayoutDashboard,
+  LogOut,
   Menu,
   Users,
   Video,
@@ -16,6 +17,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/contexts/auth-context";
 import { Toaster } from "./ui/toaster";
 
 const navigation = [
@@ -29,6 +31,8 @@ const navigation = [
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const {} = useState();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,7 +100,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </Button>
           <div className="flex-1" />
           <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">Admin User</div>
+            <div className="text-sm text-muted-foreground">
+              {user?.name || user?.email}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Salir
+            </Button>
           </div>
         </header>
 

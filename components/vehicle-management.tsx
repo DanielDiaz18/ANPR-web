@@ -40,7 +40,6 @@ export function VehicleManagement() {
     brand: "",
     model: "",
     plate_id: "",
-    status: "active",
   });
   const debouncedSearchTerm = useDebounce(searchQuery, 500);
 
@@ -145,13 +144,11 @@ export function VehicleManagement() {
                 <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Car className="h-6 w-6 text-primary" />
                 </div>
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(
-                    vehicle.status
-                  )}`}
+                {/* <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium`}
                 >
                   {vehicle.status}
-                </span>
+                </span> */}
               </div>
               <h3 className="text-lg font-semibold text-foreground mb-1">
                 {vehicle.year} {vehicle.brand} {vehicle.model}
@@ -270,7 +267,7 @@ export function VehicleManagement() {
                 />
               </div>
             </div>
-            <div className="flex gap-2 ">
+            {/* <div className="flex gap-2 ">
               <Label htmlFor="status">Active</Label>
               <Switch
                 id="status"
@@ -279,7 +276,7 @@ export function VehicleManagement() {
                   setFormData({ ...formData, active })
                 }
               ></Switch>
-            </div>
+            </div> */}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingVehicle(null)}>

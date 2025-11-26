@@ -1,4 +1,5 @@
 import z from "zod";
+import type { Vehicle } from "./vehicle.model";
 
 export interface Client {
   id: string;
@@ -7,9 +8,10 @@ export interface Client {
   phone: string;
   enabled: boolean;
   created_at?: Date;
+  vehicles?: Vehicle[];
 }
 
-export type ClientFormData = Omit<Client, "id">;
+export type ClientFormData = Omit<Client, "id" | "vehicles">;
 
 export const clientSchema: z.ZodType<ClientFormData> = z.object({
   name: z.string().min(1, "Name is required"),
